@@ -63,7 +63,7 @@ void init_display(void)
 void restore_display(void)
 {
 	osd_blank("/sys/class/graphics/fb0/blank", 0);
-	osd_blank("/sys/class/graphics/fb1/blank", 0);
+	osd_blank("/sys/class/graphics/fb1/blank", 1);
 }
 
 int set_tsync_enable(int enable)
