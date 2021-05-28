@@ -37,6 +37,7 @@ FILE* fp = NULL;
 FILE* yuv = NULL;
 static int axis[8] = {0};
 struct amvideo_dev *amvideo;
+int g_double_write_mode = 0;
 
 struct out_buffer_t {
     int index;
@@ -60,6 +61,17 @@ int set_tsync_enable(int enable)
     }
 
     return -1;
+}
+
+void set_double_write_mode(char *path)
+{
+	g_double_write_mode = amsysfs_get_sysfs_int(path);
+	amsysfs_set_sysfs_int(path, 16);
+}
+
+void reset_double_write_mode(char *path)
+{
+	amsysfs_set_sysfs_int(path, g_double_write_mode);
 }
 
 int parse_para(const char *para, int para_num, int *result)
@@ -187,6 +199,8 @@ static void signal_handler(int signum)
     raise(signum);
     ionvideo_close();
     FreeBuffers();
+	if (vpcodec->video_type == VFORMAT_HEVC)
+		reset_double_write_mode("/sys/module/amvdec_h265/parameters/double_write_mode");
 }
 
 int main(int argc, char *argv[])
@@ -199,9 +213,10 @@ int main(int argc, char *argv[])
     uint32_t Readlen;
     uint32_t isize;
     struct buf_status vbuf;
+	char double_write_mode_node[64];
 
     if (argc < 6) {
-        printf("Corret command: ionplayer <filename> <width> <height> <fps> <format(1:mpeg4 2:h264)> [subformat for mpeg4]\n");
+        printf("Corret command: ionplayer <filename> <width> <height> <fps> <format(1:mpeg4 2:h264 11:hevc)> [subformat for mpeg4]\n");
         return -1;
     }
 #ifdef AUDIO_ES
@@ -217,6 +232,11 @@ int main(int argc, char *argv[])
     if (vpcodec->video_type == VFORMAT_H264) {
         vpcodec->am_sysinfo.format = VIDEO_DEC_FORMAT_H264;
         vpcodec->am_sysinfo.param = (void *)(EXTERNAL_PTS | SYNC_OUTSIDE);
+	}
+	else if (vpcodec->video_type == VFORMAT_HEVC) {
+		vpcodec->am_sysinfo.format = VIDEO_DEC_FORMAT_HEVC;
+		vpcodec->am_sysinfo.param = (void *)(EXTERNAL_PTS | SYNC_OUTSIDE);
+		set_double_write_mode("/sys/module/amvdec_h265/parameters/double_write_mode");
     } else if (vpcodec->video_type == VFORMAT_MPEG4) {
         if (argc < 7) {
             printf("No subformat for mpeg4, take the default VIDEO_DEC_FORMAT_MPEG4_5\n");
@@ -361,6 +381,8 @@ error:
     fclose(yuv);
     ionvideo_close();
     FreeBuffers();
+	if (vpcodec->video_type == VFORMAT_HEVC)
+		reset_double_write_mode("/sys/module/amvdec_h265/parameters/double_write_mode");
     return 0;
 }
 
